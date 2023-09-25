@@ -46,7 +46,8 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Cache Data Files
         if: inputs.save_data_in_github_cache
@@ -97,10 +98,10 @@ jobs:
         run: PATH_PREFIX=/${{ github.event.repository.name }} pnpm build
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
-        with:
+        uses: actions/upload-pages-artifact@v2
+        #with:
           # Upload dist repository
-          path: './dist'
+          # path: './dist'
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v2
