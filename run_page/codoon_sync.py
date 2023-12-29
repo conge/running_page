@@ -6,29 +6,27 @@ import json
 import os
 import time
 import urllib.parse
+import xml.etree.ElementTree as ET
 from collections import namedtuple
 from datetime import datetime, timedelta
 
+import eviltransform
 import gpxpy
+import numpy as np
 import polyline
 import requests
-import eviltransform
 from config import (
     BASE_TIMEZONE,
     GPX_FOLDER,
-    TCX_FOLDER,
     JSON_FILE,
     SQL_FILE,
+    TCX_FOLDER,
     run_map,
     start_point,
 )
 from generator import Generator
-
-from utils import adjust_time_to_utc, adjust_timestamp_to_utc, to_date
-
-import numpy as np
-import xml.etree.ElementTree as ET
 from tzlocal import get_localzone
+from utils import adjust_time_to_utc, adjust_timestamp_to_utc, to_date
 
 # struct body
 FitType = np.dtype(
@@ -131,6 +129,12 @@ def formated_input(
 def tcx_output(fit_array, run_data):
     # route ID
     fit_id = str(run_data["id"])
+    # local time
+    fit_start_time_local = run_data["start_time"]
+    # zulu time
+    utc = adjust_time_to_utc(to_date(fit_start_time_local), str(get_localzone()))
+    fit_start_time = utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     # Root node
     training_center_database = ET.Element(
         "TrainingCenterDatabase",
@@ -156,7 +160,7 @@ def tcx_output(fit_array, run_data):
     activities.append(activity)
     #   Id
     activity_id = ET.Element("Id")
-    activity_id.text = fit_id
+    activity_id.text = fit_start_time  # Codoon use start_time as ID
     activity.append(activity_id)
     #   Creator
     activity_creator = ET.Element("Creator")
@@ -166,13 +170,6 @@ def tcx_output(fit_array, run_data):
     activity_creator_name.text = "咕咚"
     activity_creator.append(activity_creator_name)
     #   Lap
-
-    # local time
-    fit_start_time_local = run_data["start_time"]
-    # zulu time
-    utc = adjust_time_to_utc(to_date(fit_start_time_local), str(get_localzone()))
-    fit_start_time = utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-
     activity_lap = ET.Element("Lap", {"StartTime": fit_start_time})
     activity.append(activity_lap)
     #       TotalTimeSeconds
@@ -238,13 +235,13 @@ def tcx_job(run_data):
     if "points" in run_data:
         own_points = run_data["points"]  # track points
     # get single bpm
-    if own_heart_rate != None:
+    if own_heart_rate is not None:
         for single_time, single_bpm in own_heart_rate.items():
             single_time = adjust_timestamp_to_utc(single_time, str(get_localzone()))
             # set bpm data
             fit_array = set_array(fit_array, single_time, single_bpm, None, None, None)
     # get single track point
-    if own_points != None:
+    if own_points is not None:
         for point in own_points:
             repeat_flag = False
             # TODO add elevation information

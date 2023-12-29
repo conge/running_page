@@ -8,6 +8,8 @@ import { FeatureCollection, LineString } from 'geojson';
 
 export type Coordinate = [number, number];
 
+export type RunIds = Array<number> | [];
+
 export interface Activity {
   run_id: number;
   name: string;
@@ -78,7 +80,7 @@ const scrollToMap = () => {
   }
 };
 
-const pattern = /([\u4e00-\u9fa5]{2,}(市|自治州))/g;
+const pattern = /([\u4e00-\u9fa5]{2,}(市|自治州|特别行政区))/g;
 const extractLocations = (str: string): string[] => {
   const locations = [];
   let match;
@@ -218,8 +220,8 @@ const getBoundsForGeoData = (
       break;
     }
   }
-  if (!points) {
-    return {};
+  if (points.length === 0) {
+    return { longitude: 20, latitude: 20, zoom: 3 };
   }
   // Calculate corner values of bounds
   const pointsLong = points.map((point) => point[0]) as number[];
