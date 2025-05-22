@@ -21,3 +21,7 @@ _site/
 config.yaml
 .venv/
 .swp
+.pdm-python
+
+route.png
+route.svg
