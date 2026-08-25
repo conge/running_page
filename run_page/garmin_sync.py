@@ -9,7 +9,6 @@ import datetime as dt
 import logging
 import os
 
-os.environ["GARTH_TELEMETRY_ENABLED"] = "false"
 import sys
 import time
 import traceback
@@ -18,10 +17,10 @@ from io import BytesIO
 from lxml import etree
 
 import aiofiles
-import garth
 import httpx
 from config import FOLDER_DICT, JSON_FILE, SQL_FILE
 from garmin_device_adaptor import process_garmin_data
+from garminconnect import Garmin as GarminConnect
 from utils import make_activities_file
 
 # logging.basicConfig(level=logging.DEBUG)
@@ -58,19 +57,20 @@ class Garmin:
             if auth_domain and str(auth_domain).upper() == "CN"
             else GARMIN_COM_URL_DICT
         )
-        if auth_domain and str(auth_domain).upper() == "CN":
-            garth.configure(domain="garmin.cn", ssl_verify=False)
         self.modern_url = self.URL_DICT.get("MODERN_URL")
-        garth.client.loads(secret_string)
-        if garth.client.oauth2_token.expired:
-            garth.client.refresh_oauth2()
+        # Auth via python-garminconnect: load the tokens from the secret string
+        # (inline JSON) and let the library refresh them when needed.
+        self._garmin = GarminConnect(
+            is_cn=bool(auth_domain and str(auth_domain).upper() == "CN")
+        )
+        self._garmin.login(secret_string)
 
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
             "origin": self.URL_DICT.get("SSO_URL_ORIGIN"),
             "nk": "NT",
-            "Authorization": str(garth.client.oauth2_token),
         }
+        self.headers.update(self._garmin.client.get_api_headers())
         self.is_only_running = is_only_running
         self.upload_url = self.URL_DICT.get("UPLOAD_URL")
         self.activity_url = self.URL_DICT.get("ACTIVITY_URL")
