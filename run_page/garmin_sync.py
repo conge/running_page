@@ -316,12 +316,23 @@ async def download_garmin_data(
         traceback.print_exc()
 
 
-async def get_activity_id_list(client, start=0):
+async def get_activity_id_list(client, start=0, after=None):
+    """
+    Fetch Garmin activity ids. If `after` (aware UTC datetime) is provided,
+    only ids of activities started strictly after it are kept, so existing
+    DB history (e.g. from Strava) is not duplicated by Garmin activities.
+    """
     activities = await client.get_activities(start, 100)
     if len(activities) > 0:
-        ids = list(map(lambda a: str(a.get("activityId", "")), activities))
+        ids = []
+        for a in activities:
+            if after is not None:
+                start_time = _parse_garmin_time(a.get("startTimeGMT", ""))
+                if start_time is not None and start_time <= after:
+                    continue
+            ids.append(str(a.get("activityId", "")))
         print("Syncing Activity IDs")
-        return ids + await get_activity_id_list(client, start + 100)
+        return ids + await get_activity_id_list(client, start + 100, after)
     else:
         return []
 
@@ -338,6 +349,47 @@ async def gather_with_concurrency(n, tasks):
 
 def get_downloaded_ids(folder):
     return [i.split(".")[0] for i in os.listdir(folder) if not i.startswith(".")]
+
+
+def _parse_garmin_time(s):
+    """Parse Garmin startTimeGMT (naive UTC) into an aware UTC datetime."""
+    if not s:
+        return None
+    try:
+        t = dt.datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=dt.timezone.utc)
+    return t
+
+
+def get_last_activity_date(sql_file):
+    """
+    Return the newest activity start_date in the DB as an aware UTC datetime,
+    or None if the DB is empty/unreadable. Used to avoid re-importing Garmin
+    activities that already exist in the DB (e.g. from Strava history).
+    """
+    try:
+        from sqlalchemy import create_engine, text
+
+        engine = create_engine(f"sqlite:///{sql_file}")
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT MAX(start_date) FROM activities")
+            ).fetchone()
+        engine.dispose()
+        if row and row[0]:
+            s = row[0]
+            try:
+                return dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+            except ValueError:
+                return dt.datetime.strptime(
+                    s, "%Y-%m-%d %H:%M:%S"
+                ).replace(tzinfo=dt.timezone.utc)
+    except Exception as e:
+        print(f"Failed to read last activity date from db: {e}")
+    return None
 
 
 def get_garmin_summary_infos(activity_summary, activity_id):
@@ -362,12 +414,18 @@ def get_garmin_summary_infos(activity_summary, activity_id):
 
 
 async def download_new_activities(
-    secret_string, auth_domain, downloaded_ids, is_only_running, folder, file_type
+    secret_string,
+    auth_domain,
+    downloaded_ids,
+    is_only_running,
+    folder,
+    file_type,
+    after=None,
 ):
     client = Garmin(secret_string, auth_domain, is_only_running)
     # because I don't find a para for after time, so I use garmin-id as filename
     # to find new run to generate
-    activity_ids = await get_activity_id_list(client)
+    activity_ids = await get_activity_id_list(client, after=after)
     to_generate_garmin_ids = list(set(activity_ids) - set(downloaded_ids))
     print(f"{len(to_generate_garmin_ids)} new activities to be downloaded")
 
@@ -456,6 +514,13 @@ if __name__ == "__main__":
         # merge downloaded_ids:list
         downloaded_ids = list(set(downloaded_ids + downloaded_gpx_ids))
 
+    # Only download Garmin activities newer than the newest one already in the
+    # DB, so the existing Strava history is preserved without duplicates.
+    # When the DB is empty (fresh start) `after` is None -> full sync.
+    after = get_last_activity_date(SQL_FILE)
+    if after is not None:
+        print(f"Only syncing Garmin activities after {after.isoformat()}")
+
     loop = asyncio.get_event_loop()
     future = asyncio.ensure_future(
         download_new_activities(
@@ -465,6 +530,7 @@ if __name__ == "__main__":
             is_only_running,
             folder,
             file_type,
+            after,
         )
     )
     loop.run_until_complete(future)
