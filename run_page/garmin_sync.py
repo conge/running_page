@@ -382,11 +382,14 @@ def get_last_activity_date(sql_file):
         if row and row[0]:
             s = row[0]
             try:
-                return dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+                t = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
             except ValueError:
-                return dt.datetime.strptime(
-                    s, "%Y-%m-%d %H:%M:%S"
-                ).replace(tzinfo=dt.timezone.utc)
+                t = dt.datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+            # DB start_date may have no timezone (GPX-imported records); treat
+            # it as UTC so it stays comparable with Garmin startTimeGMT (aware).
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=dt.timezone.utc)
+            return t
     except Exception as e:
         print(f"Failed to read last activity date from db: {e}")
     return None
