@@ -5,6 +5,7 @@ Copy most code from https://github.com/cyberjunky/python-garminconnect
 
 import argparse
 import asyncio
+import base64
 import datetime as dt
 import logging
 import os
@@ -63,7 +64,13 @@ class Garmin:
         self._garmin = GarminConnect(
             is_cn=bool(auth_domain and str(auth_domain).upper() == "CN")
         )
-        self._garmin.login(secret_string)
+        # The secret is base64-encoded JSON (new format). Fall back to raw JSON
+        # for compatibility with secrets generated before the base64 change.
+        try:
+            secret_json = base64.urlsafe_b64decode(secret_string.encode()).decode()
+        except Exception:
+            secret_json = secret_string
+        self._garmin.login(secret_json)
 
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",

@@ -1,4 +1,5 @@
 import argparse
+import base64
 import sys
 
 from garminconnect import (
@@ -42,4 +43,6 @@ if __name__ == "__main__":
         print(f"Connection error: {e}")
         sys.exit(1)
 
-    print(api.client.dumps())
+    # Base64-encode the JSON so the value is a single token without spaces or
+    # quotes — safe to store as a GitHub secret and pass as a CLI argument.
+    print(base64.urlsafe_b64encode(api.client.dumps().encode()).decode())
