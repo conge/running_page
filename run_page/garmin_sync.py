@@ -129,7 +129,11 @@ class Garmin:
         if file_type == "fit":
             url = f"{self.modern_url}/download-service/files/activity/{activity_id}"
         logger.info(f"Download activity from {url}")
-        response = await self.req.get(url, headers=self.headers)
+        # The Garmin download-service rejects the JSON Accept header (added by
+        # garminconnect.get_api_headers) with 406, so use a wildcard Accept
+        # when downloading files.
+        headers = {**self.headers, "Accept": "*/*"}
+        response = await self.req.get(url, headers=headers)
         response.raise_for_status()
         return response.read()
 
