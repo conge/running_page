@@ -44,7 +44,7 @@ const data: ISiteMetadataResult = {
       name: '关于',
       url: 'https://conge.github.io/about',
     },
-],
+  ],
 };
 
 export default data;

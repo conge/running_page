@@ -69,7 +69,7 @@ class Garmin:
         # for compatibility with secrets generated before the base64 change.
         try:
             secret_json = base64.urlsafe_b64decode(secret_string.encode()).decode()
-        except Exception:
+        except Exception:  # noqa: BLE001
             secret_json = secret_string
         self._garmin.login(secret_json)
 
@@ -357,7 +357,7 @@ def _parse_garmin_time(s):
     except ValueError:
         return None
     if t.tzinfo is None:
-        t = t.replace(tzinfo=dt.timezone.utc)
+        t = t.replace(tzinfo=dt.UTC)
     return t
 
 
@@ -379,15 +379,15 @@ def get_last_activity_date(sql_file):
         if row and row[0]:
             s = row[0]
             try:
-                t = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+                t = dt.datetime.fromisoformat(s)
             except ValueError:
                 t = dt.datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
             # DB start_date may have no timezone (GPX-imported records); treat
             # it as UTC so it stays comparable with Garmin startTimeGMT (aware).
             if t.tzinfo is None:
-                t = t.replace(tzinfo=dt.timezone.utc)
+                t = t.replace(tzinfo=dt.UTC)
             return t
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Failed to read last activity date from db: {e}")
     return None
 
