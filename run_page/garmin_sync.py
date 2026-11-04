@@ -492,6 +492,21 @@ if __name__ == "__main__":
         default="gpx",
         help="to download personal documents or ebook",
     )
+    parser.add_argument(
+        "--after",
+        dest="after",
+        metavar="YYYY-MM-DD",
+        help="override the incremental sync start date (e.g. to recover "
+        "activities that were missed earlier)",
+    )
+    parser.add_argument(
+        "--lookback-days",
+        dest="lookback_days",
+        type=int,
+        default=30,
+        help="how many days before the newest DB activity to sync again "
+        "(default: 30, 0 = no date filter at all)",
+    )
     options = parser.parse_args()
     secret_string = options.secret_string
     auth_domain = "CN" if options.is_cn else "COM"  # Default to COM if not specified
@@ -514,12 +529,25 @@ if __name__ == "__main__":
         # merge downloaded_ids:list
         downloaded_ids = list(set(downloaded_ids + downloaded_gpx_ids))
 
-    # Only download Garmin activities newer than the newest one already in the
-    # DB, so the existing Strava history is preserved without duplicates.
+    # Only download Garmin activities newer than (the newest one already in the
+    # DB minus a lookback window), so the existing Strava history is preserved
+    # without duplicates while late uploads are still picked up.
     # When the DB is empty (fresh start) `after` is None -> full sync.
-    after = get_last_activity_date(SQL_FILE)
-    if after is not None:
-        print(f"Only syncing Garmin activities after {after.isoformat()}")
+    after = None
+    if options.after:
+        after = _parse_garmin_time(f"{options.after}T00:00:00")
+        if after is None:
+            print(f"Invalid --after value: {options.after}")
+            sys.exit(1)
+        print(f"Syncing Garmin activities after {after.date()} (--after)")
+    elif options.lookback_days > 0:
+        newest = get_last_activity_date(SQL_FILE)
+        if newest is not None:
+            after = newest - dt.timedelta(days=options.lookback_days)
+            print(
+                f"Only syncing Garmin activities after {after.isoformat()} "
+                f"(lookback {options.lookback_days}d)"
+            )
 
     loop = asyncio.get_event_loop()
     future = asyncio.ensure_future(

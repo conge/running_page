@@ -34,6 +34,9 @@ env:
   TITLE_GRID: Over 15km Runs # also here
   GITHUB_NAME: conge
   GITHUB_EMAIL: congel@gmail.com
+  # Timezone of the runner. Used for activities without GPS (e.g. treadmill runs)
+  # where the timezone cannot be derived from the track.
+  RUNNING_PAGE_TIMEZONE: America/Los_Angeles
 
   # IGNORE_BEFORE_SAVING: True # if you want to ignore some data before saving, set this to True
   IGNORE_START_END_RANGE: 10 # Unit meter
